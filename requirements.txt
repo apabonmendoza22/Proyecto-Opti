@@ -1,0 +1,9 @@
+langchain
+streamlit
+ibm-watson
+langchain-community
+langchain-ibm
+python-dotenv
+pypdf
+sentence-transformers
+langchain_ibm_watson_ai
