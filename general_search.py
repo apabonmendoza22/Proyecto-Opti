@@ -1,5 +1,11 @@
 def general_search(llm, query):
-    # Aquí puedes implementar la lógica para búsquedas generales
-    # Por ejemplo, puedes usar el LLM directamente para responder preguntas generales
-    response = llm(f"Por favor, responde a la siguiente pregunta: {query}")
-    return response
+    prompt = f"""Responde a la siguiente pregunta de manera concisa, precisa y bien estructurada. 
+    Utiliza un lenguaje claro y correcto, evitando errores ortográficos o gramaticales. 
+    La respuesta debe ser informativa pero no exceder de 3-4 frases.
+
+Pregunta: {query}
+
+Respuesta:"""
+    
+    response = llm(prompt)
+    return response.strip()
