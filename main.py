@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, render_template
+from flask_cors import CORS
 from langchain_ibm import WatsonxLLM
 from langchain.agents import initialize_agent, AgentType
 from langchain.prompts import PromptTemplate
@@ -9,7 +10,9 @@ from api_tools import get_api_tools
 from general_search import general_search
 from RAG import process_pdf, rag_query
 
+
 app = Flask(__name__)
+CORS(app)
 
 load_dotenv()
 
@@ -71,6 +74,7 @@ intent_chain = LLMChain(llm=llm, prompt=intent_prompt)
 # Variable global para almacenar el rag_chain
 rag_chain = None
 
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -109,4 +113,4 @@ def chat():
     return jsonify({"response": response})
 
 if __name__ == '__main__':
-    app.run(port='5000', host='0.0.0.0', debug=True)
+    app.run(port='5001', host='0.0.0.0', debug=True)
