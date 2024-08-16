@@ -1,5 +1,4 @@
-# main.py
-import streamlit as st
+from flask import Flask, request, jsonify, render_template
 from langchain_ibm import WatsonxLLM
 from langchain.agents import initialize_agent, AgentType
 from langchain.prompts import PromptTemplate
@@ -10,6 +9,7 @@ from api_tools import get_api_tools
 from general_search import general_search
 from RAG import process_pdf, rag_query
 
+app = Flask(__name__)
 
 load_dotenv()
 
@@ -68,45 +68,45 @@ intent_prompt = PromptTemplate(
 
 intent_chain = LLMChain(llm=llm, prompt=intent_prompt)
 
-# Interfaz de Streamlit
-st.title('OPTI ChatBot con integración de API')
+# Variable global para almacenar el rag_chain
+rag_chain = None
 
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-if 'messages' not in st.session_state:
-    st.session_state.messages = []
-if 'rag_chain' not in st.session_state:
-    st.session_state.rag_chain = None
+@app.route('/upload_pdf', methods=['POST'])
+def upload_pdf():
+    global rag_chain
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+    if file and file.filename.endswith('.pdf'):
+        rag_chain = process_pdf(file, llm)
+        return jsonify({"message": "PDF processed successfully"}), 200
+    return jsonify({"error": "Invalid file type"}), 400
 
-prompt = st.chat_input("Hazle una pregunta a Opti")
-use_rag = st.sidebar.checkbox("Usar RAG")
+@app.route('/chat', methods=['POST'])
+def chat():
+    data = request.json
+    prompt = data.get('prompt')
+    use_rag = data.get('use_rag', False)
 
-if use_rag:
-    upload_pdf = st.file_uploader("Sube un archivo PDF", type="pdf")
-    if upload_pdf is not None:
-        with st.spinner('Procesando tu solicitud...'):
-            st.session_state.rag_chain = process_pdf(upload_pdf, llm)
-        st.sidebar.success("Archivo PDF cargado con éxito")
+    if not prompt:
+        return jsonify({"error": "No prompt provided"}), 400
 
-if prompt:
-    st.chat_message('user').markdown(prompt)
-    st.session_state.messages.append({'role': 'user', 'content': prompt})
-    
-    with st.spinner('Procesando tu solicitud...'):
-        if use_rag and st.session_state.rag_chain:
-            response = rag_query(st.session_state.rag_chain, prompt)
+    if use_rag and rag_chain:
+        response = rag_query(rag_chain, prompt)
+    else:
+        intent = intent_chain.run(prompt)
+        if intent in ["1", "2", "3", "4"]:
+            response = agent.run(prompt)
         else:
-            # Determinar la intención del usuario
-            intent = intent_chain.run(prompt)
-            
-            if intent in ["1", "2", "3", "4"]:
-                response = agent.run(prompt)
-            else:
-                response = general_search(llm, prompt)
-    
-    st.chat_message('assistant').markdown(response)
-    st.session_state.messages.append({'role': 'assistant', 'content': response})
+            response = general_search(llm, prompt)
 
+    return jsonify({"response": response})
 
-# Mostrar historial de mensajes
-for message in st.session_state.messages:
-    st.chat_message(message['role']).markdown(message['content'])
+if __name__ == '__main__':
+    app.run(port='5000', host='0.0.0.0', debug=True)

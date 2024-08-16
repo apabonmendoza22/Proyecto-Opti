@@ -9,3 +9,4 @@ sentence-transformers
 langchain_ibm_watson_ai
 fauss-cpu
 unstructured
+flask 
