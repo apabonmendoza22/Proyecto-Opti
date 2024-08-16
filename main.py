@@ -8,7 +8,8 @@ from dotenv import load_dotenv
 import os
 from api_tools import get_api_tools
 from general_search import general_search
-from RAG import load_documents, create_combined_chain, query_documents
+from RAG import process_pdf, rag_query
+
 
 load_dotenv()
 
@@ -21,7 +22,7 @@ parameters = {
     "decoding_method": "greedy",
     "max_new_tokens": 200,
     "min_new_tokens": 1,
-    "temperature": 0.2,
+    "temperature": 0.1,
     "top_k": 50,
     "top_p": 1,
 }
@@ -46,11 +47,6 @@ agent = initialize_agent(
     verbose=True
 )
 
-# Cargar documentos y crear la cadena combinada
-documents_path = os.path.join(os.path.dirname(__file__), "documents")
-vectorstore = load_documents(documents_path)
-combined_chain = create_combined_chain(vectorstore, llm)
-
 # Prompt para determinar la intención del usuario
 intent_template = """
 Determina la intención del usuario basándote en su pregunta. Las posibles intenciones son:
@@ -58,7 +54,7 @@ Determina la intención del usuario basándote en su pregunta. Las posibles inte
 2. Creación de ticket
 3. Consulta de incidente
 4. Creación de incidente
-5. Búsqueda general o consulta de documentación interna
+5. Búsqueda general
 
 Pregunta del usuario: {question}
 
@@ -73,43 +69,43 @@ intent_prompt = PromptTemplate(
 intent_chain = LLMChain(llm=llm, prompt=intent_prompt)
 
 # Interfaz de Streamlit
-st.title('OPTI ChatBot con integración de API y RAG')
+st.title('OPTI ChatBot con integración de API')
+
 
 if 'messages' not in st.session_state:
     st.session_state.messages = []
+if 'rag_chain' not in st.session_state:
+    st.session_state.rag_chain = None
 
 prompt = st.chat_input("Hazle una pregunta a Opti")
+use_rag = st.sidebar.checkbox("Usar RAG")
+
+if use_rag:
+    upload_pdf = st.file_uploader("Sube un archivo PDF", type="pdf")
+    if upload_pdf is not None:
+        with st.spinner('Procesando tu solicitud...'):
+            st.session_state.rag_chain = process_pdf(upload_pdf, llm)
+        st.sidebar.success("Archivo PDF cargado con éxito")
 
 if prompt:
     st.chat_message('user').markdown(prompt)
     st.session_state.messages.append({'role': 'user', 'content': prompt})
     
     with st.spinner('Procesando tu solicitud...'):
-        # Determinar la intención del usuario
-        intent = intent_chain.run(prompt)
-        
-        if intent in ["1", "2", "3", "4"]:
-            response = agent.run(prompt)
+        if use_rag and st.session_state.rag_chain:
+            response = rag_query(st.session_state.rag_chain, prompt)
         else:
-            # Intentar usar RAG primero
-            rag_response, is_relevant, source_documents = query_documents(combined_chain, prompt, vectorstore)
+            # Determinar la intención del usuario
+            intent = intent_chain.run(prompt)
             
-            if is_relevant:
-                response = rag_response
-                # Mostrar los documentos fuente en la barra lateral
-                st.sidebar.info("Fuentes utilizadas:")
-                for i, doc in enumerate(source_documents):
-                    st.sidebar.text(f"Documento {i+1}:")
-                    st.sidebar.text(f"  - Fuente: {doc.metadata['source']}")
-                    st.sidebar.text(f"  - Página: {doc.metadata.get('page', 'N/A')}")
-                    st.sidebar.text(f"  - Contenido: {doc.page_content[:100]}...")
+            if intent in ["1", "2", "3", "4"]:
+                response = agent.run(prompt)
             else:
-                # Si no es relevante, usar búsqueda general
                 response = general_search(llm, prompt)
-                st.sidebar.info("Esta pregunta se respondió utilizando conocimientos generales, no se utilizaron documentos específicos.")
     
     st.chat_message('assistant').markdown(response)
     st.session_state.messages.append({'role': 'assistant', 'content': response})
+
 
 # Mostrar historial de mensajes
 for message in st.session_state.messages:
