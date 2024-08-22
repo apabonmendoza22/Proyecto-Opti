@@ -27,16 +27,17 @@ def crear_ticket(data):
     full_data = {**default_data, **data}
     
     # Asegurarse de que todos los campos obligatorios estén presentes
-    required_fields = ["reportedBy", "affectedPerson", "description", "longDescription"]
+    required_fields = ["owner", "reportedBy", "affectedPerson", "description", "longDescription"]
     for field in required_fields:
         if field not in full_data:
-            return f"Error: Falta el campo obligatorio '{field}'"
+            return {"error": f"Falta el campo obligatorio '{field}'"}
     
     response = requests.post(f"{API_BASE_URL}/crear_ticket", json=full_data)
     if response.status_code == 200:
-        return response.json()
+        ticket_data = response.json()
+        return {"ticketId": ticket_data.get("ticketId")}
     else:
-        return f"Error al crear el ticket: {response.status_code}"
+        return {"error": f"Error al crear el ticket: {response.status_code}"}
 
 def consultar_incidente(ticket_id):
     response = requests.get(f"{API_BASE_URL}/consultar_incidente", params={"ticket_id": ticket_id})
