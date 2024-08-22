@@ -12,7 +12,7 @@ import tempfile
 import logging
 from general_search import general_search
 from typing import Dict, Any
-from api_tools import crear_ticket
+from api_tools import crear_ticket, crear_incidente
 import re
 from typing import Dict, Any
 
@@ -149,7 +149,7 @@ def chat() -> Dict[str, Any]:
             logger.info("Using RAG for PDF-related query")
             response = rag_query(rag_chain, prompt)
 
-        elif intent == "2":  # Creación de ticket
+        elif intent == "2":  # Creación de caso
             logger.info("Creating a new ticket")
             try:
                 description, long_description = extract_ticket_info(prompt)
@@ -182,8 +182,40 @@ def chat() -> Dict[str, Any]:
                 error_message = ticket_response if isinstance(ticket_response, str) else str(ticket_response)
                 response = {"result": f"Error al crear el ticket: {error_message}", "source_documents": []}
 
+        elif intent == "4":  # Creación de incidente
+            logger.info("Creating a new incidents")
+            try:
+                description, long_description = extract_ticket_info(prompt)
+            except Exception as e:
+                logger.error(f"Error extracting ticket info: {str(e)}")
+                return jsonify({"error": "Failed to extract ticket information"}), 500
 
-        elif intent in ["1", "3", "4"]:
+            ticket_data = {
+                "impact": 3,
+                "urgency": 3,
+                "ownerGroup": "I-IBM-SMI-EUS",
+                "reportedBy": "LHOLGUIN",
+                "description": description,
+                "affectedPerson": "LHOLGUIN",
+                "externalSystem": "SELFSERVICE",
+                "longDescription": long_description,
+                "classificationId": "PRO108009005"
+            }
+            ticket_response = crear_incidente(ticket_data)
+            logger.info(f"Ticket creation response: {ticket_response}")
+            if isinstance(ticket_response, dict) and "ticketId" in ticket_response:
+                response = {
+            "result": f"Ticket creado con éxito. ID: {ticket_response['ticketId']}",
+            "description": description,
+            "long_description": long_description,
+            "source_documents": []
+        }
+            else:
+                error_message = ticket_response if isinstance(ticket_response, str) else str(ticket_response)
+                response = {"result": f"Error al crear el ticket: {error_message}", "source_documents": []}
+
+
+        elif intent in ["1", "3"]:
             logger.info("Using agent for ticket/incident related query")
             agent_response = agent.run(prompt)
             response = {"result": agent_response, "source_documents": []}

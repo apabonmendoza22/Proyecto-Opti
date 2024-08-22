@@ -64,6 +64,7 @@ def crear_incidente(data):
         return response.json()
     else:
         return f"Error al crear el incidente: {response.status_code}"
+    
 def obtener_datos_usuario(prompt):
     """
     Esta función simula la interacción con el usuario para obtener datos.
