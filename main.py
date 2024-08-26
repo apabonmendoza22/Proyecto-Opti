@@ -15,6 +15,9 @@ from typing import Dict, Any
 from api_tools import crear_ticket, crear_incidente
 import re
 from typing import Dict, Any
+from slack_bot import handler as slack_handler
+from pdf_processor import initialize_pdf_processor, process_query
+
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -22,6 +25,14 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 load_dotenv()
+
+def process_slack_message(user_input: str) -> str:
+    try:
+        chat_response = chat({'prompt': user_input})
+        return chat_response['response']['result']
+    except Exception as e:
+        logger.error(f"Error processing Slack message: {str(e)}")
+        return "Lo siento, ocurrió un error al procesar tu mensaje."
 
 api_tools = get_api_tools()
 
@@ -53,7 +64,9 @@ intent_prompt = PromptTemplate(
 
 intent_chain = LLMChain(llm=llm, prompt=intent_prompt)
 
-rag_chain = None
+# Inicializar el procesador de PDF
+pdf_directory = os.path.join(os.path.dirname(__file__), 'documents')
+rag_chain = initialize_pdf_processor(pdf_directory, llm)
 
 @app.route('/')
 def index():
@@ -147,7 +160,7 @@ def chat() -> Dict[str, Any]:
 
         if intent == "6" and rag_chain:
             logger.info("Using RAG for PDF-related query")
-            response = rag_query(rag_chain, prompt)
+            response = process_query(rag_chain, lambda q: general_search(llm, q), prompt)
 
         elif intent == "2":  # Creación de caso
             logger.info("Creating a new ticket")
@@ -228,8 +241,22 @@ def chat() -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error in chat endpoint: {str(e)}")
         return jsonify({"error": "An internal error occurred"}), 500
+    
+
+
+@app.route('/slack/events', methods=['POST'])
+def slack_events():
+    # Importar el handler aquí para evitar la importación circular
+    from slack_bot import handler
+    
+    # Verificar si es una solicitud de desafío
+    if request.json and "challenge" in request.json:
+        return jsonify({"challenge": request.json["challenge"]})
+    
+    # Si no es un desafío, manejar el evento normalmente
+    return handler.handle(request)
 
 if __name__ == '__main__':
-    app.run(port='5001', host='0.0.0.0', debug=True)
+    app.run(port=5001, host='0.0.0.0', debug=True)
 
 
