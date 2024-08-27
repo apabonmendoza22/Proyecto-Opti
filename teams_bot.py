@@ -27,11 +27,19 @@ async def handle_teams_message(request):
         async def turn_call(turn_context):
             message = turn_context.activity.text
             logger.info(f"Received message: {message}")
-            if message:  # Verificamos que el mensaje no sea None
+            if message:
                 process_message = get_process_message_function()
                 response = process_message(message)
-                logger.info(f"Sending response: {response}")
-                await turn_context.send_activity(response)
+                logger.info(f"Raw response: {response}")
+                
+                # Extraer el texto de la respuesta
+                if isinstance(response, dict):
+                    response_text = response.get('result', str(response))
+                else:
+                    response_text = str(response)
+                
+                logger.info(f"Sending response: {response_text}")
+                await turn_context.send_activity(response_text)
             else:
                 logger.warning("Received empty message")
 
@@ -39,7 +47,7 @@ async def handle_teams_message(request):
             await adapter.process_activity(activity, auth_header, turn_call)
             return Response(status=200)
         except Exception as e:
-            logger.error(f"Error processing activity: {str(e)}")
+            logger.error(f"Error processing activity: {str(e)}", exc_info=True)
             return Response(status=500)
     else:
         return Response(status=415)

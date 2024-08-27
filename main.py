@@ -19,7 +19,7 @@ from slack_bot import handler as slack_handler
 from pdf_processor import initialize_pdf_processor, process_query
 from teams_bot import handle_teams_message  # Cambiado de 'messages as teams_messages'
 import asyncio
-
+import requests
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -30,11 +30,22 @@ load_dotenv()
 
 def process_message(user_input: str) -> str:
     try:
-        chat_response = chat({'prompt': user_input})
-        return chat_response['response']['result']
+        chat_response = requests.post("http://localhost:5001/chat", json={"prompt": user_input}).json()
+        response_data = chat_response.get("response", {})
+        
+        # Si response_data es un diccionario, intentamos obtener el 'result'
+        if isinstance(response_data, dict):
+            result = response_data.get('result', str(response_data))
+        else:
+            result = str(response_data)
+        
+        logger.debug(f"Processed message. Result: {result}")
+        return result
     except Exception as e:
-        logger.error(f"Error processing message: {str(e)}")
+        logger.error(f"Error processing message: {str(e)}", exc_info=True)
         return "Lo siento, ocurrió un error al procesar tu mensaje."
+    
+
 
 
 api_tools = get_api_tools()
@@ -244,6 +255,8 @@ def chat() -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error in chat endpoint: {str(e)}")
         return jsonify({"error": "An internal error occurred"}), 500
+    
+    return jsonify({"response": response})
     
 
 
