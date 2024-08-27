@@ -17,6 +17,8 @@ import re
 from typing import Dict, Any
 from slack_bot import handler as slack_handler
 from pdf_processor import initialize_pdf_processor, process_query
+from teams_bot import handle_teams_message  # Cambiado de 'messages as teams_messages'
+import asyncio
 
 
 app = Flask(__name__)
@@ -26,13 +28,14 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 load_dotenv()
 
-def process_slack_message(user_input: str) -> str:
+def process_message(user_input: str) -> str:
     try:
         chat_response = chat({'prompt': user_input})
         return chat_response['response']['result']
     except Exception as e:
-        logger.error(f"Error processing Slack message: {str(e)}")
+        logger.error(f"Error processing message: {str(e)}")
         return "Lo siento, ocurrió un error al procesar tu mensaje."
+
 
 api_tools = get_api_tools()
 
@@ -246,15 +249,28 @@ def chat() -> Dict[str, Any]:
 
 @app.route('/slack/events', methods=['POST'])
 def slack_events():
-    # Importar el handler aquí para evitar la importación circular
     from slack_bot import handler
     
-    # Verificar si es una solicitud de desafío
     if request.json and "challenge" in request.json:
         return jsonify({"challenge": request.json["challenge"]})
     
-    # Si no es un desafío, manejar el evento normalmente
     return handler.handle(request)
+
+@app.route("/api/messages", methods=["POST"])
+def teams_webhook():
+    if "application/json" in request.headers["Content-Type"]:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        response = loop.run_until_complete(handle_teams_message(request))
+        loop.close()
+        return response
+    else:
+        return jsonify({"error": "Unsupported Media Type"}), 415
+
+@app.route("/test", methods=["GET"])
+def test():
+    return "Bot is running!"
+
 
 if __name__ == '__main__':
     app.run(port=5001, host='0.0.0.0', debug=True)

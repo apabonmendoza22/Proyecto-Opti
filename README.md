@@ -13,3 +13,6 @@ Conceptos y tecnologías para estudiar :
 - RAG, FINE-TUNING
 - Langchain 
 
+Instalar 
+
+pip install botbuilder-integration-aiohttp>=4.14.0 botbuilder-dialogs>=4.14.0 botbuilder-ai>=4.14.0
