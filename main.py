@@ -28,9 +28,11 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 load_dotenv()
 
+CHAT_SERVICE_URL = os.getenv("CHAT_SERVICE_URL")
+
 def process_message(user_input: str) -> str:
     try:
-        chat_response = requests.post("http://localhost:5001/chat", json={"prompt": user_input}).json()
+        chat_response = requests.post(CHAT_SERVICE_URL, json={"prompt": user_input}).json()
         response_data = chat_response.get("response", {})
         
         # Si response_data es un diccionario, intentamos obtener el 'result'
