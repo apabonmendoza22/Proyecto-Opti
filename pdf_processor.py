@@ -10,6 +10,10 @@ from ibm_watson_machine_learning.foundation_models import Model
 from ibm_watson_machine_learning.metanames import GenTextParamsMetaNames as GenParams
 from ibm_watson_machine_learning.foundation_models.utils.enums import DecodingMethods
 from dotenv import load_dotenv
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 load_dotenv()
 
@@ -96,40 +100,56 @@ def create_rag_chain(db, llm):
     
     return qa_chain
 
-def process_query(rag_chain, general_search_function, query):
-    rag_response = rag_chain({"query": query})
-    
-    if not rag_response['result'].strip() or rag_response['result'].strip().lower().startswith("no puedo encontrar"):
-        # Si RAG no encuentra información o la respuesta está vacía, usar búsqueda general
-        general_response = general_search_function(query)
-        return {
-            "result": general_response,
-            "source": "búsqueda general"
-        }
-    else:
-        # Extraer más contexto de los documentos fuente
-        full_context = "\n".join([doc.page_content for doc in rag_response['source_documents']])
-        
-        # Generar una respuesta más detallada utilizando el contexto completo
-        detailed_prompt = f"""Basándote en la siguiente información, proporciona una respuesta detallada y completa a la pregunta. 
-        Incluye todos los detalles relevantes encontrados en el contexto. Si hay información faltante o poco clara, indícalo.
-        
-        Contexto:
-        {full_context}
-        
-        Pregunta: {query}
-        
-        Respuesta detallada:"""
-        
-        detailed_response = llm(detailed_prompt)
-        
-        # Limitar las fuentes a un máximo de 3 y eliminar duplicados
-        sources = list(set([doc.page_content[:150] + "..." for doc in rag_response['source_documents']]))[:3]
-        
-        return {
-            "result": detailed_response,
-            "source_documents": sources,
-            "source": "RAG"
-        }
+import logging
+from typing import Callable, Any
 
-# Asegúrate de que el modelo LLM esté configurado para generar respuestas más largas
+# Configurar el logger
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def process_query(rag_chain: Any, general_search_function: Callable[[str], str], query: str) -> dict:
+    try:
+        rag_response = rag_chain({"query": query})
+        
+        # Verificar si la respuesta del RAG es útil
+        if not rag_response['result'].strip() or \
+           any(phrase in rag_response['result'].strip().lower() for phrase in ["no puedo encontrar", "lo siento", "no tengo información"]):
+            logger.info("RAG no encontró información útil. Pasando a búsqueda general.")
+            general_response = general_search_function(query)
+            return {
+                "result": general_response,
+                "source": "búsqueda general",
+                "source_documents": []
+            }
+        else:
+            # Extraer más contexto de los documentos fuente
+            full_context = "\n".join([doc.page_content for doc in rag_response['source_documents']])
+            
+            # Generar una respuesta más detallada utilizando el contexto completo
+            detailed_prompt = f"""Basándote en la siguiente información, proporciona una respuesta detallada y completa a la pregunta. 
+            Incluye todos los detalles relevantes encontrados en el contexto. Si hay información faltante o poco clara, indícalo.
+            
+            Contexto:
+            {full_context}
+            
+            Pregunta: {query}
+            
+            Respuesta detallada:"""
+            
+            detailed_response = llm(detailed_prompt)
+            
+            # Limitar las fuentes a un máximo de 3 y eliminar duplicados
+            sources = list(set([doc.page_content[:150] + "..." for doc in rag_response['source_documents']]))[:3]
+            
+            return {
+                "result": detailed_response,
+                "source_documents": sources,
+                "source": "RAG"
+            }
+    except Exception as e:
+        logger.error(f"Error en process_query: {str(e)}")
+        return {
+            "result": "Lo siento, ocurrió un error al procesar tu consulta. Por favor, intenta de nuevo.",
+            "source": "error",
+            "source_documents": []
+        }

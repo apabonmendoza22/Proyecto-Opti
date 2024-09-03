@@ -20,6 +20,7 @@ from pdf_processor import initialize_pdf_processor, process_query
 from teams_bot import handle_teams_message  # Cambiado de 'messages as teams_messages'
 import asyncio
 import requests
+import re
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -163,6 +164,16 @@ def extract_ticket_info(prompt):
 
     return description, long_description
 
+
+def handle_opti_identity(prompt):
+    identity_keywords = ['quién eres', 'qué eres', 'eres un bot', 'eres una ia', 'eres un asistente', 'qué es opti']
+    if any(keyword in prompt.lower() for keyword in identity_keywords):
+        return {
+            "result": "Soy OPTI, un asistente virtual de Optimize IT diseñado para ayudarte con consultas, creación de tickets, y proporcionar información sobre servicios de tu empresa. Estoy aquí para asistirte en lo que necesites.",
+            "source_documents": []
+        }
+    return None
+
 @app.route('/chat', methods=['POST'])
 def chat() -> Dict[str, Any]:
     data = request.json
@@ -172,6 +183,17 @@ def chat() -> Dict[str, Any]:
         return jsonify({"error": "No prompt provided"}), 400
 
     try:
+
+        identity_response = handle_opti_identity(prompt)
+        if identity_response:
+            return jsonify({
+                "response": {
+
+                    "result": identity_response["result"],
+                    "source_documents": []
+                }
+            })
+        
         intent = intent_chain.run(prompt)
         logger.info(f"Detected intent: {intent}")
 
