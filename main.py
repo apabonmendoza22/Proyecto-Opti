@@ -66,6 +66,9 @@ Determina la intención del usuario basándote en su pregunta. Las posibles inte
 5. Búsqueda general
 6. Consulta relacionada con el PDF cargado
 
+importante: si el usuario en su prompt no menciona la palabra ticket, la intención por defecto es 5 o 6. 
+
+
 Pregunta del usuario: {question}
 
 Responde solo con el número de la intención correspondiente.

@@ -1,0 +1,42 @@
+{
+    "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.11/MicrosoftTeams.schema.json",
+    "manifestVersion": "1.11",
+    "version": "1.0.0",
+    "id": "93d16c02-4900-4d26-be10-2cdc137cf5a0",
+    "packageName": "com.yourcompany.watsonvirtualagent",
+    "developer": {
+        "name": "OPTI",
+        "websiteUrl": "https://www.ibm.com",
+        "privacyUrl": "https://www.ibm.com/privacy",
+        "termsOfUseUrl": "https://www.ibm.com/legal"
+    },
+    "name": {
+        "short": "OPTI",
+        "full": "OPTI Virtual Agent"
+    },
+    "description": {
+        "short": "Virtual agent using IBM Watson",
+        "full": "A virtual agent powered by IBM Watson technologies to assist with various tasks and queries."
+    },
+    "accentColor": "#FFFFFF",
+    "bots": [
+        {
+            "botId": "93d16c02-4900-4d26-be10-2cdc137cf5a0",
+            "scopes": [
+                "personal",
+                "team",
+                "groupchat"
+            ],
+            "supportsFiles": false,
+            "isNotificationOnly": false
+        }
+    ],
+    "permissions": [
+        "identity",
+        "messageTeamMembers"
+    ],
+    "validDomains": [
+        "token.botframework.com",
+        "*.ngrok-free.app"
+    ]
+}
