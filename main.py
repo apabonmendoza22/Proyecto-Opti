@@ -175,8 +175,8 @@ def chat() -> Dict[str, Any]:
         intent = intent_chain.run(prompt)
         logger.info(f"Detected intent: {intent}")
 
-        if intent == "6" and rag_chain:
-            logger.info("Using RAG for PDF-related query")
+        if intent in ["5", "6"]:  # Búsqueda general o consulta relacionada con PDF
+            logger.info("Using combined RAG and general search")
             response = process_query(rag_chain, lambda q: general_search(llm, q), prompt)
 
         elif intent == "2":  # Creación de caso
@@ -250,11 +250,10 @@ def chat() -> Dict[str, Any]:
             agent_response = agent.run(prompt)
             response = {"result": agent_response, "source_documents": []}
         else:
-            logger.info("Using general search")
-            general_response = general_search(llm, prompt)
-            response = {"result": general_response, "source_documents": []}
-
+            logger.info("Unrecognized intent, falling back to combined search")
+            response = process_query(rag_chain, lambda q: general_search(llm, q), prompt)
         return jsonify({"response": response})
+    
     except Exception as e:
         logger.error(f"Error in chat endpoint: {str(e)}")
         return jsonify({"error": "An internal error occurred"}), 500
