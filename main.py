@@ -21,6 +21,7 @@ from teams_bot import handle_teams_message  # Cambiado de 'messages as teams_mes
 import asyncio
 import requests
 import re
+import json
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -66,8 +67,10 @@ Determina la intención del usuario basándote en su pregunta. Las posibles inte
 4. Creación de incidente
 5. Búsqueda general
 6. Consulta relacionada con el PDF cargado
+7. Enviar correo electrónico
 
 importante: si el usuario en su prompt no menciona la palabra ticket, la intención por defecto es 5 o 6. 
+si el usuario menciona que quiere enviar un correo electrónico la intención es 7.
 
 
 Pregunta del usuario: {question}
@@ -174,6 +177,67 @@ def handle_opti_identity(prompt):
         }
     return None
 
+def extract_email_info(prompt):
+    email_template = """
+    Basándote en la siguiente entrada del usuario, extrae la información necesaria para enviar un correo electrónico.
+    Debes proporcionar los siguientes campos en formato JSON:
+    - asunto: El asunto del correo (máximo 100 caracteres)
+    - mensaje: El contenido del mensaje (máximo 500 caracteres)
+    - proveedor: El proveedor de correo (por defecto, usa "gmail")
+    - destinatario: La dirección de correo electrónico del destinatario
+
+    Entrada del usuario: {prompt}
+
+    Proporciona SOLO la información en formato JSON, sin código adicional.
+    """
+    
+    email_prompt = PromptTemplate(
+        input_variables=["prompt"],
+        template=email_template,
+    )
+    
+    email_chain = LLMChain(llm=llm, prompt=email_prompt)
+    
+    result = email_chain.run(prompt)
+    logger.debug(f"Raw email info output: {result}")
+
+    try:
+        # Intenta parsear directamente como JSON
+        email_info = json.loads(result)
+    except json.JSONDecodeError:
+        # Si falla, intenta extraer el JSON del string
+        json_match = re.search(r'\{.*\}', result, re.DOTALL)
+        if json_match:
+            try:
+                email_info = json.loads(json_match.group())
+            except json.JSONDecodeError:
+                logger.error("Failed to parse email info from extracted JSON")
+                return None
+        else:
+            logger.error("No JSON-like structure found in the output")
+            return None
+
+    # Validar y establecer valores por defecto si es necesario
+    email_info['asunto'] = email_info.get('asunto', 'Sin asunto')[:100]
+    email_info['mensaje'] = email_info.get('mensaje', '')[:500]
+    email_info['proveedor'] = email_info.get('proveedor', 'gmail')
+    
+    if 'destinatario' not in email_info or not email_info['destinatario']:
+        logger.error("No recipient email address found")
+        return None
+
+    return email_info
+
+def send_email(email_data):
+    endpoint = "https://correo.1jgnu1o1v8pl.us-south.codeengine.appdomain.cloud/send-email"
+    try:
+        response = requests.post(endpoint, json=email_data)
+        response.raise_for_status()
+        return {"success": True, "message": "Correo enviado exitosamente"}
+    except requests.RequestException as e:
+        return {"success": False, "error": str(e)}
+    
+
 @app.route('/chat', methods=['POST'])
 def chat() -> Dict[str, Any]:
     data = request.json
@@ -197,7 +261,20 @@ def chat() -> Dict[str, Any]:
         intent = intent_chain.run(prompt)
         logger.info(f"Detected intent: {intent}")
 
-        if intent in ["5", "6"]:  # Búsqueda general o consulta relacionada con PDF
+
+        if intent == "7":  # Envío de correo electrónico
+            logger.info("Sending email")
+            email_info = extract_email_info(prompt)
+            if email_info:
+                email_response = send_email(email_info)
+                if email_response["success"]:
+                    response = {"result": email_response["message"], "source_documents": []}
+                else:
+                    response = {"result": f"Error al enviar el correo: {email_response['error']}", "source_documents": []}
+            else:
+                response = {"result": "No se pudo extraer la información del correo correctamente", "source_documents": []}
+
+        elif intent in ["5", "6"]:  # Búsqueda general o consulta relacionada con PDF
             logger.info("Using combined RAG and general search")
             response = process_query(rag_chain, lambda q: general_search(llm, q), prompt)
 
