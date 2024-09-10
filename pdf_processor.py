@@ -44,6 +44,7 @@ model = Model(
 
 llm = WatsonxLLM(model=model)
 
+# ... (resto del código sin cambios)
 
 def initialize_pdf_processor(pdf_directory, llm):
     documents = load_pdfs_from_directory(pdf_directory)

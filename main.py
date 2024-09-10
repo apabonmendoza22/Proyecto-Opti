@@ -3,22 +3,21 @@ from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from dotenv import load_dotenv
 import os
-from api.api_tools import get_api_tools
-from rag.RAG import process_pdf, rag_query, llm
+from api_tools import get_api_tools
+from RAG import process_pdf, rag_query, llm
 from langchain.agents import initialize_agent, AgentType
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
 import tempfile
 import logging
-from core.general_search import general_search
+from general_search import general_search
 from typing import Dict, Any
-from api.api_tools import crear_ticket, crear_incidente
+from api_tools import crear_ticket, crear_incidente
 import re
 from typing import Dict, Any
-from bots.slack_bot import handler as slack_handler
-from rag.pdf_processor import initialize_pdf_processor, process_query
-from bots.teams_bot import handle_teams_message  # Cambiado de 'messages as teams_messages'
-from core.intent_classifier import classify_intent
+from slack_bot import handler as slack_handler
+from pdf_processor import initialize_pdf_processor, process_query
+from teams_bot import handle_teams_message  # Cambiado de 'messages as teams_messages'
 import asyncio
 import requests
 import re
@@ -364,7 +363,7 @@ def chat() -> Dict[str, Any]:
 
 @app.route('/slack/events', methods=['POST'])
 def slack_events():
-    from bots.slack_bot import handler
+    from slack_bot import handler
     
     if request.json and "challenge" in request.json:
         return jsonify({"challenge": request.json["challenge"]})
