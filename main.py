@@ -12,7 +12,7 @@ import tempfile
 import logging
 from general_search import general_search
 from typing import Dict, Any
-from api_tools import crear_ticket, crear_incidente
+from api_tools import crear_ticket, crear_incidente, consultar_incidente, consultar_ticket, obtener_classification_id
 import re
 from typing import Dict, Any
 from slack_bot import handler as slack_handler
@@ -22,6 +22,7 @@ import asyncio
 import requests
 import re
 import json
+
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -278,7 +279,7 @@ def chat() -> Dict[str, Any]:
             logger.info("Using combined RAG and general search")
             response = process_query(rag_chain, lambda q: general_search(llm, q), prompt)
 
-        elif intent == "2":  # Creación de caso
+        elif intent == "2":  # Creación de ticket
             logger.info("Creating a new ticket")
             try:
                 description, long_description = extract_ticket_info(prompt)
@@ -296,23 +297,22 @@ def chat() -> Dict[str, Any]:
                 "affectedPerson": "LHOLGUIN",
                 "externalSystem": "SELFSERVICE",
                 "longDescription": long_description,
-                "classificationId": "PRO205002012001"
             }
             ticket_response = crear_ticket(ticket_data)
             logger.info(f"Ticket creation response: {ticket_response}")
-            if isinstance(ticket_response, dict) and "ticketId" in ticket_response:
+            if "ticketId" in ticket_response and "classificationId" in ticket_response:
                 response = {
-            "result": f"Ticket creado con éxito. ID: {ticket_response['ticketId']}",
-            "description": description,
-            "long_description": long_description,
-            "source_documents": []
-        }
+                    "result": f"Ticket creado con éxito. ID: {ticket_response['ticketId']}, Clasificación: {ticket_response['classificationId']}",
+                    "description": description,
+                    "long_description": long_description,
+                    "source_documents": []
+                }
             else:
-                error_message = ticket_response if isinstance(ticket_response, str) else str(ticket_response)
-                response = {"result": f"Error al crear el ticket: {error_message}", "source_documents": []}
+                error_message = ticket_response.get("error", "Error desconocido al crear el ticket")
+                response = {"result": error_message, "source_documents": []}
 
         elif intent == "4":  # Creación de incidente
-            logger.info("Creating a new incidents")
+            logger.info("Creating a new incident")
             try:
                 description, long_description = extract_ticket_info(prompt)
             except Exception as e:
@@ -328,20 +328,20 @@ def chat() -> Dict[str, Any]:
                 "affectedPerson": "LHOLGUIN",
                 "externalSystem": "SELFSERVICE",
                 "longDescription": long_description,
-                "classificationId": "PRO108009005"
             }
             ticket_response = crear_incidente(ticket_data)
-            logger.info(f"Ticket creation response: {ticket_response}")
-            if isinstance(ticket_response, dict) and "ticketId" in ticket_response:
+            logger.info(f"Incident creation response: {ticket_response}")
+            if "ticketId" in ticket_response:
                 response = {
-            "result": f"Ticket creado con éxito. ID: {ticket_response['ticketId']}",
-            "description": description,
-            "long_description": long_description,
-            "source_documents": []
-        }
+                    "result": f"Incidente creado con éxito. ID: {ticket_response['ticketId']}, Clasificación: {ticket_response['classificationId']}",
+                    "description": description,
+                    "long_description": long_description,
+                    "source_documents": []
+                }
             else:
-                error_message = ticket_response if isinstance(ticket_response, str) else str(ticket_response)
-                response = {"result": f"Error al crear el ticket: {error_message}", "source_documents": []}
+                error_message = ticket_response.get("error", "Error desconocido al crear el incidente")
+                response = {"result": error_message, "source_documents": []}
+        
 
 
         elif intent in ["1", "3"]:

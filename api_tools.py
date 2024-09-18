@@ -6,6 +6,15 @@ load_dotenv()
 
 API_BASE_URL = os.getenv("API_URL")
 
+def obtener_classification_id(descripcion):
+    url = "https://clasification.1jgnu1o1v8pl.us-south.codeengine.appdomain.cloud/clasificar"
+    payload = {"texto": f"RESUMEN: {descripcion}"}
+    response = requests.post(url, json=payload)
+    if response.status_code == 200:
+        return response.json().get('resultado')
+    else:
+        return None
+
 def consultar_ticket(ticket_id):
     response = requests.get(f"{API_BASE_URL}/consulta_ticket", params={"ticket_id": ticket_id})
     if response.status_code == 200:
@@ -18,7 +27,6 @@ def crear_ticket(data):
     default_data = {
         "externalSystem": "SELFSERVICE",
         "ownerGroup": "I-IBM-CO-VIRTUAL-ASSISTANT",
-        "classificationId": "PRO205002012001",
         "impact": 3,
         "urgency": 3
     }
@@ -32,10 +40,20 @@ def crear_ticket(data):
         if field not in full_data:
             return {"error": f"Falta el campo obligatorio '{field}'"}
     
+    # Obtener el classificationId
+    classification_id = obtener_classification_id(full_data["description"])
+    print(f"Classification ID: {classification_id}")
+    if classification_id:
+        full_data["classificationId"] = classification_id
+        print(f"full_data: {full_data}")
+    else:
+        full_data["classificationId"] = "PRO205002012001"  # Valor por defecto
+    
     response = requests.post(f"{API_BASE_URL}/crear_ticket", json=full_data)
+    print(f"Response: {response}")
     if response.status_code == 200:
         ticket_data = response.json()
-        return {"ticketId": ticket_data.get("ticketId")}
+        return {"ticketId": ticket_data.get("ticketId"), "classificationId": classification_id}
     else:
         return {"error": f"Error al crear el ticket: {response.status_code}"}
 
@@ -51,7 +69,6 @@ def crear_incidente(data):
     default_data = {
         "externalSystem": "SELFSERVICE",
         "ownerGroup": "I-IBM-SMI-EUS",
-        "classificationId": "PRO108009005",
         "impact": 3,
         "urgency": 3
     }
@@ -59,11 +76,19 @@ def crear_incidente(data):
     # Combinar los datos proporcionados con los valores predeterminados
     full_data = {**default_data, **data}
     
+    # Obtener el classificationId
+    classification_id = obtener_classification_id(full_data["description"])
+    if classification_id:
+        full_data["classificationId"] = classification_id
+    else:
+        full_data["classificationId"] = "PRO108009005"  # Valor por defecto
+    
     response = requests.post(f"{API_BASE_URL}/crear_incidente", json=full_data)
     if response.status_code == 200:
-        return response.json()
+        ticket_data = response.json()
+        return {"ticketId": ticket_data.get("ticketId"), "classificationId": classification_id}
     else:
-        return f"Error al crear el incidente: {response.status_code}"
+        return {"error": f"Error al crear el incidente: {response.status_code}"}
     
 def obtener_datos_usuario(prompt):
     """
