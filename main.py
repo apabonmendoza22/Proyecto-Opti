@@ -33,7 +33,7 @@ load_dotenv()
 
 def process_message(user_input: str) -> str:
     try:
-        chat_response = requests.post("https://back-opti.1jgnu1o1v8pl.us-south.codeengine.appdomain.cloud/chat", json={"prompt": user_input}).json()
+        chat_response = requests.post("https://backend-clasificacion.1jgnu1o1v8pl.us-south.codeengine.appdomain.cloud/chat", json={"prompt": user_input}).json()
         response_data = chat_response.get("response", {})
         
         # Si response_data es un diccionario, intentamos obtener el 'result'
