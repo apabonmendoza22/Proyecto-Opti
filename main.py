@@ -31,6 +31,8 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 load_dotenv()
 
+conversation_state={}
+
 def process_message(user_input: str) -> str:
     try:
         chat_response = requests.post("https://backend-clasificacion.1jgnu1o1v8pl.us-south.codeengine.appdomain.cloud/chat", json={"prompt": user_input}).json()
@@ -239,29 +241,79 @@ def send_email(email_data):
         return {"success": False, "error": str(e)}
     
 
+conversation_states = {}
+
 @app.route('/chat', methods=['POST'])
 def chat() -> Dict[str, Any]:
     data = request.json
     prompt = data.get('prompt')
+    user_id = data.get('user_id', 'default_user')  # Asumimos que el frontend envía un user_id
 
     if not prompt:
         return jsonify({"error": "No prompt provided"}), 400
 
     try:
+        if user_id in conversation_states:
+            state = conversation_states[user_id]['state']
+            if state in ['creating_ticket', 'creating_incident']:
+                if 'description' not in conversation_states[user_id]:
+                    conversation_states[user_id]['description'] = prompt
+                    return jsonify({
+                        "response": {
+                            "result": "Gracias. Ahora, por favor proporciona una descripción detallada del problema:",
+                            "source_documents": []
+                        }
+                    })
+                else:
+                    description = conversation_states[user_id]['description']
+                    long_description = prompt
 
+                    if state == 'creating_ticket':
+                        ticket_data = {
+                            "description": description,
+                            "longDescription": long_description,
+                        }
+                        response = crear_ticket(ticket_data)
+                    else:  # creating_incident
+                        # Obtener la clasificación y el grupo para incidentes
+                        classification_id, grupo = obtener_classification_id(description, "Incident")
+                        ticket_data = {
+                            "impact": 3,
+                            "urgency": 3,
+                            "reportedBy": "LHOLGUIN",
+                            "description": description,
+                            "affectedPerson": "LHOLGUIN",
+                            "externalSystem": "SELFSERVICE",
+                            "longDescription": long_description,
+                            "classificationId": classification_id if classification_id else "PRO108009005",
+                            "ownerGroup": grupo if grupo else "I-IBM-SMI-EUS"
+                        }
+                        response = crear_incidente(ticket_data)
+
+                    del conversation_states[user_id]
+
+                    if "ticketId" in response:
+                        result = f"{'Ticket' if state == 'creating_ticket' else 'Incidente'} creado con éxito. ID: {response['ticketId']}, Clasificación: {response.get('classificationId', 'No disponible')}, Grupo: {response.get('grupo', 'No disponible')}"
+                    else:
+                        result = response.get("error", f"Error desconocido al crear el {'ticket' if state == 'creating_ticket' else 'incidente'}")
+                        if "detalles" in response:
+                            result += f" Detalles: {response['detalles']}"
+
+                    return jsonify({
+                        "response": {
+                            "result": result,
+                            "description": description,
+                            "long_description": long_description,
+                            "source_documents": []
+                        }
+                    })
+        # Si no estamos en medio de la creación de un ticket, procedemos normalmente
         identity_response = handle_opti_identity(prompt)
         if identity_response:
-            return jsonify({
-                "response": {
-
-                    "result": identity_response["result"],
-                    "source_documents": []
-                }
-            })
+            return jsonify({"response": identity_response})
         
         intent = intent_chain.run(prompt)
         logger.info(f"Detected intent: {intent}")
-
 
         if intent == "7":  # Envío de correo electrónico
             logger.info("Sending email")
@@ -280,69 +332,23 @@ def chat() -> Dict[str, Any]:
             response = process_query(rag_chain, lambda q: general_search(llm, q), prompt)
 
         elif intent == "2":  # Creación de ticket
-            logger.info("Creating a new ticket")
-            try:
-                description, long_description = extract_ticket_info(prompt)
-            except Exception as e:
-                logger.error(f"Error extracting ticket info: {str(e)}")
-                return jsonify({"error": "Failed to extract ticket information"}), 500
-
-            ticket_data = {
-                "owner": "CMEDINAM@IBM.COM",
-                "impact": 3,
-                "urgency": 3,
-                "ownerGroup": "I-IBM-CO-VIRTUAL-ASSISTANT",
-                "reportedBy": "LHOLGUIN",
-                "description": description,
-                "affectedPerson": "LHOLGUIN",
-                "externalSystem": "SELFSERVICE",
-                "longDescription": long_description,
-            }
-            ticket_response = crear_ticket(ticket_data)
-            logger.info(f"Ticket creation response: {ticket_response}")
-            if "ticketId" in ticket_response and "classificationId" in ticket_response:
-                response = {
-                    "result": f"Ticket creado con éxito. ID: {ticket_response['ticketId']}, Clasificación: {ticket_response['classificationId']}",
-                    "description": description,
-                    "long_description": long_description,
+            # Establecemos el estado de la conversación
+            conversation_states[user_id] = {'state': 'creating_ticket'}
+            return jsonify({
+                "response": {
+                    "result": "Por favor, proporciona una breve descripción del problema para el ticket:",
                     "source_documents": []
                 }
-            else:
-                error_message = ticket_response.get("error", "Error desconocido al crear el ticket")
-                response = {"result": error_message, "source_documents": []}
+            })
 
         elif intent == "4":  # Creación de incidente
-            logger.info("Creating a new incident")
-            try:
-                description, long_description = extract_ticket_info(prompt)
-            except Exception as e:
-                logger.error(f"Error extracting ticket info: {str(e)}")
-                return jsonify({"error": "Failed to extract ticket information"}), 500
-
-            ticket_data = {
-                "impact": 3,
-                "urgency": 3,
-                "ownerGroup": "I-IBM-SMI-EUS",
-                "reportedBy": "LHOLGUIN",
-                "description": description,
-                "affectedPerson": "LHOLGUIN",
-                "externalSystem": "SELFSERVICE",
-                "longDescription": long_description,
-            }
-            ticket_response = crear_incidente(ticket_data)
-            logger.info(f"Incident creation response: {ticket_response}")
-            if "ticketId" in ticket_response:
-                response = {
-                    "result": f"Incidente creado con éxito. ID: {ticket_response['ticketId']}, Clasificación: {ticket_response['classificationId']}",
-                    "description": description,
-                    "long_description": long_description,
+            conversation_states[user_id] = {'state': 'creating_incident'}
+            return jsonify({
+                "response": {
+                    "result": "Por favor, proporciona un resumen breve del problema para el incidente:",
                     "source_documents": []
                 }
-            else:
-                error_message = ticket_response.get("error", "Error desconocido al crear el incidente")
-                response = {"result": error_message, "source_documents": []}
-        
-
+            })
 
         elif intent in ["1", "3"]:
             logger.info("Using agent for ticket/incident related query")
@@ -351,13 +357,12 @@ def chat() -> Dict[str, Any]:
         else:
             logger.info("Unrecognized intent, falling back to combined search")
             response = process_query(rag_chain, lambda q: general_search(llm, q), prompt)
+        
         return jsonify({"response": response})
     
     except Exception as e:
         logger.error(f"Error in chat endpoint: {str(e)}")
         return jsonify({"error": "An internal error occurred"}), 500
-    
-    return jsonify({"response": response})
     
 
 
