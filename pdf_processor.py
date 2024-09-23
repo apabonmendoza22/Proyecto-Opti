@@ -46,6 +46,36 @@ llm = WatsonxLLM(model=model)
 
 # ... (resto del código sin cambios)
 
+def process_pdf(pdf_path):
+    # Cargar el PDF
+    loader = PyPDFLoader(pdf_path)
+    documents = loader.load_and_split()
+
+    # Dividir el texto en chunks
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=300,
+        chunk_overlap=50,
+        length_function=len
+    )
+    texts = text_splitter.split_documents(documents)
+
+    # Crear embeddings
+    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+
+    # Crear vector store
+    db = Chroma.from_documents(texts, embeddings)
+
+    # Crear el chain RAG
+    retriever = db.as_retriever(search_kwargs={"k": 3})
+    rag_chain = RetrievalQA.from_chain_type(
+        llm=llm,
+        chain_type="stuff",
+        retriever=retriever,
+        return_source_documents=True
+    )
+
+    return rag_chain
+
 def initialize_pdf_processor(pdf_directory, llm):
     documents = load_pdfs_from_directory(pdf_directory)
     db = create_vector_store(documents)
@@ -62,8 +92,8 @@ def load_pdfs_from_directory(directory):
 
 def create_vector_store(documents):
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=300,
-        chunk_overlap=50,
+        chunk_size=2000,
+        chunk_overlap=200,
         length_function=len
     )
     texts = text_splitter.split_documents(documents)
