@@ -54,7 +54,7 @@ def crear_ticket(data):
 
     # Obtener clasificación y grupo si no se proporcionaron
     if 'classificationId' not in data or 'ownerGroup' not in data:
-        classification_id, grupo = obtener_classification_id(ticket_template['description'], "SR")
+        classification_id, grupo = obtener_classification_id(ticket_template['longDescription'], "SR")
         if classification_id and grupo:
             ticket_template['classificationId'] = classification_id
             ticket_template['ownerGroup'] = grupo
@@ -106,7 +106,7 @@ def crear_incidente(data):
     full_data = {**default_data, **data}
     
     # Obtener el classificationId y grupo
-    classification_id, grupo = obtener_classification_id(full_data["description"], "Incident")
+    classification_id, grupo = obtener_classification_id(full_data["longDescription"], "Incident")
     if classification_id:
         full_data["classificationId"] = classification_id
         full_data["ownerGroup"] = grupo

@@ -172,10 +172,24 @@ def extract_ticket_info(prompt):
 
 
 def handle_opti_identity(prompt):
-    identity_keywords = ['quién eres', 'qué eres', 'eres un bot', 'eres una ia', 'eres un asistente', 'qué es opti']
+    identity_keywords = [
+        'quién eres', 'qué eres', 'eres un bot', 'eres una ia', 'eres un asistente',
+        'qué es opti', 'cuál es tu función', 'para qué sirves', 'cómo te llamas',
+        'qué puedes hacer', 'cuéntame sobre ti', 'explícame quién eres', 'explícame qué eres',
+        'explícame tu función', 'explícame para qué sirves', 'explícame cómo te llamas',
+        'explícame qué puedes hacer', 'explícame cuál es tu función', 'explícame qué es opti'
+        'quien eres'
+    ]
     if any(keyword in prompt.lower() for keyword in identity_keywords):
+        identity_responses = [
+            "¡Hola! Soy OPTI, tu asistente virtual amigable de Optimize IT. Estoy aquí para ayudarte con todo lo que necesites, desde consultas hasta creación de tickets. ¿En qué puedo ayudarte hoy?",
+            "Es un placer conocerte. Me llamo OPTI y soy un asistente virtual diseñado para hacer tu vida más fácil en Optimize IT. ¿Tienes alguna pregunta o necesitas ayuda con algo?",
+            "¡Qué gusto saludarte! Soy OPTI, tu compañero digital en Optimize IT. Estoy aquí para asistirte en lo que necesites, ya sea información, creación de tickets o cualquier otra cosa. ¿En qué puedo echarte una mano?",
+            "¡Hola! Soy OPTI, tu asistente virtual personal en Optimize IT. Mi objetivo es hacer tu trabajo más sencillo y eficiente. ¿Hay algo en particular en lo que pueda ayudarte hoy?"
+        ]
+        import random
         return {
-            "result": "Soy OPTI, un asistente virtual de Optimize IT diseñado para ayudarte con consultas, creación de tickets, y proporcionar información sobre servicios de tu empresa. Estoy aquí para asistirte en lo que necesites.",
+            "result": random.choice(identity_responses),
             "source_documents": []
         }
     return None
@@ -276,7 +290,7 @@ def chat() -> Dict[str, Any]:
                         response = crear_ticket(ticket_data)
                     else:  # creating_incident
                         # Obtener la clasificación y el grupo para incidentes
-                        classification_id, grupo = obtener_classification_id(description, "Incident")
+                        classification_id, grupo = obtener_classification_id(long_description, "Incident")
                         ticket_data = {
                             "impact": 3,
                             "urgency": 3,
@@ -327,9 +341,12 @@ def chat() -> Dict[str, Any]:
             else:
                 response = {"result": "No se pudo extraer la información del correo correctamente", "source_documents": []}
 
-        elif intent in ["5", "6"]:  # Búsqueda general o consulta relacionada con PDF
+        if intent in ["5", "6"]:  # Búsqueda general o consulta relacionada con PDF
             logger.info("Using combined RAG and general search")
             response = process_query(rag_chain, lambda q: general_search(llm, q), prompt)
+            # Hacer la respuesta más amigable
+            friendly_response = f"¡Claro! Aquí tienes la información que encontré: {response['result']} ¿Hay algo más en lo que pueda ayudarte?"
+            response['result'] = friendly_response
 
         elif intent == "2":  # Creación de ticket
             # Establecemos el estado de la conversación
