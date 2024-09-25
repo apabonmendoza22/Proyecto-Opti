@@ -53,8 +53,8 @@ def process_pdf(pdf_path):
 
     # Dividir el texto en chunks
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=300,
-        chunk_overlap=50,
+        chunk_size=1000,
+        chunk_overlap=200,
         length_function=len
     )
     texts = text_splitter.split_documents(documents)

@@ -341,9 +341,27 @@ def chat() -> Dict[str, Any]:
             else:
                 response = {"result": "No se pudo extraer la información del correo correctamente", "source_documents": []}
 
-        if intent in ["5", "6"]:  # Búsqueda general o consulta relacionada con PDF
+        elif intent in ["5", "6"]:  # Búsqueda general o consulta relacionada con PDF
             logger.info("Using combined RAG and general search")
-            response = process_query(rag_chain, lambda q: general_search(llm, q), prompt)
+            rag_response = process_query(rag_chain, lambda q: general_search(llm, q), prompt)
+            
+            # Verificar si la respuesta de RAG es útil
+            if any(phrase in rag_response['result'].lower() for phrase in [
+                "no se menciona", 
+                "no puedo encontrar esa información",
+                "no hay información",
+                "no hay mención",
+                "te recomiendo buscar en otra fuente"
+            ]):
+                # Si RAG no encuentra información útil, realizar búsqueda general
+                general_response = general_search(llm, prompt)
+                response = {
+                    "result": f"No encontré información específica en los documentos, pero puedo ofrecerte una respuesta general: {general_response}",
+                    "source_documents": []
+                }
+            else:
+                response = rag_response
+
             # Hacer la respuesta más amigable
             friendly_response = f"¡Claro! Aquí tienes la información que encontré: {response['result']} ¿Hay algo más en lo que pueda ayudarte?"
             response['result'] = friendly_response
